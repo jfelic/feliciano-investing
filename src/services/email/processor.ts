@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma } from "../../../generated/prisma";
 import { fetchPropertyEmails, type ImapConfig } from "./fetcher";
 import type { ParsedProperty } from "./types";
+import { normalizeAddress } from "./utils";
 
 const prisma = new PrismaClient();
 
@@ -23,25 +24,14 @@ export async function processPropertyEmails(
     // Process each property
     for (const property of properties) {
       try {
-        await saveProperty(property);
-        created++;
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
-          // Unique constraint violation - property already exists
-          try {
-            await updateProperty(property);
-            updated++;
-          } catch (updateError) {
-            errors.push(
-              `Error updating property ${property.url}: ${updateError}`
-            );
-          }
-        } else {
-          errors.push(`Error saving property ${property.url}: ${error}`);
+        const result = await upsertProperty(property);
+        if (result === "created") {
+          created++;
+        } else if (result === "updated") {
+          updated++;
         }
+      } catch (error) {
+        errors.push(`Error processing property ${property.url}: ${error}`);
       }
     }
 
@@ -56,10 +46,45 @@ export async function processPropertyEmails(
 }
 
 /**
- * Save a new property to database
+ * Upsert a property - create if new, update if exists
+ * Checks both by source+sourceId AND by normalized address to prevent duplicates
  */
-async function saveProperty(property: ParsedProperty): Promise<void> {
-  const data: Prisma.PropertyCreateInput = {
+async function upsertProperty(
+  property: ParsedProperty
+): Promise<"created" | "updated"> {
+  // Try to find existing property by source + sourceId
+  let existing = await prisma.property.findUnique({
+    where: {
+      source_sourceId: {
+        source: property.source,
+        sourceId: property.sourceId,
+      },
+    },
+  });
+
+  // If not found by source+ID, check by normalized address
+  if (!existing) {
+    const normalized = normalizeAddress(
+      property.street,
+      property.city,
+      property.state
+    );
+
+    const allProperties = await prisma.property.findMany({
+      where: {
+        city: { equals: property.city, mode: "insensitive" },
+        state: { equals: property.state, mode: "insensitive" },
+      },
+    });
+
+    // Check if any match the normalized address
+    existing = allProperties.find((p) => {
+      const existingNormalized = normalizeAddress(p.street, p.city, p.state);
+      return existingNormalized === normalized;
+    }) || null;
+  }
+
+  const data = {
     street: property.street,
     city: property.city,
     state: property.state,
@@ -84,74 +109,63 @@ async function saveProperty(property: ParsedProperty): Promise<void> {
     description: property.description,
   };
 
-  const savedProperty = await prisma.property.create({ data });
+  if (existing) {
+    // Update existing property
+    const oldPrice = existing.price;
+    const newPrice = new Prisma.Decimal(property.price);
+    const priceChanged = !oldPrice.equals(newPrice);
 
-  // If there's a price change, record it in history
-  if (property.priceChange) {
-    await prisma.priceHistory.create({
+    await prisma.property.update({
+      where: { id: existing.id },
       data: {
-        propertyId: savedProperty.id,
-        oldPrice: new Prisma.Decimal(
-          property.price + property.priceChange.amount
-        ),
-        newPrice: new Prisma.Decimal(property.price),
-        changeDate: property.priceChange.date,
+        ...data,
+        // Keep existing values if new data is missing
+        beds: property.beds ?? existing.beds,
+        baths: property.baths
+          ? new Prisma.Decimal(property.baths)
+          : existing.baths,
+        sqft: property.sqft ?? existing.sqft,
+        images:
+          property.images.length > 0 ? property.images : existing.images,
+        agent: property.agent ?? existing.agent,
+        builder: property.builder ?? existing.builder,
       },
     });
-  }
-}
 
-/**
- * Update an existing property in database
- */
-async function updateProperty(property: ParsedProperty): Promise<void> {
-  // Find existing property
-  const existing = await prisma.property.findUnique({
-    where: {
-      source_sourceId: {
-        source: property.source,
-        sourceId: property.sourceId,
-      },
-    },
-  });
+    // Record price change if detected
+    if (priceChanged) {
+      await prisma.priceHistory.create({
+        data: {
+          propertyId: existing.id,
+          oldPrice,
+          newPrice,
+          changeDate: new Date(),
+        },
+      });
+    }
 
-  if (!existing) {
-    throw new Error("Property not found for update");
-  }
+    console.log(`Updated property: ${property.street}, ${property.city}`);
+    return "updated";
+  } else {
+    // Create new property
+    const savedProperty = await prisma.property.create({ data });
 
-  // Check if price changed
-  const oldPrice = existing.price;
-  const newPrice = new Prisma.Decimal(property.price);
-  const priceChanged = !oldPrice.equals(newPrice);
+    // If there's a price change from the email, record it
+    if (property.priceChange) {
+      await prisma.priceHistory.create({
+        data: {
+          propertyId: savedProperty.id,
+          oldPrice: new Prisma.Decimal(
+            property.price + property.priceChange.amount
+          ),
+          newPrice: new Prisma.Decimal(property.price),
+          changeDate: property.priceChange.date,
+        },
+      });
+    }
 
-  // Update property
-  await prisma.property.update({
-    where: { id: existing.id },
-    data: {
-      price: newPrice,
-      status: property.status ? mapStatus(property.status) : existing.status,
-      beds: property.beds ?? existing.beds,
-      baths: property.baths
-        ? new Prisma.Decimal(property.baths)
-        : existing.baths,
-      sqft: property.sqft ?? existing.sqft,
-      images:
-        property.images.length > 0 ? property.images : existing.images,
-      agent: property.agent ?? existing.agent,
-      builder: property.builder ?? existing.builder,
-    },
-  });
-
-  // Record price change if detected
-  if (priceChanged) {
-    await prisma.priceHistory.create({
-      data: {
-        propertyId: existing.id,
-        oldPrice,
-        newPrice,
-        changeDate: new Date(),
-      },
-    });
+    console.log(`Created property: ${property.street}, ${property.city}`);
+    return "created";
   }
 }
 

@@ -151,10 +151,15 @@ function parseRedfinEmail(
         priceChange = parsePriceChange(priceChangeMatch[0]) || undefined;
       }
 
-      // Extract address
-      const addressMatch = text.match(/\d+\s+[^,]+,\s*[^,]+,\s*[A-Z]{2}/);
+      // Extract address - clean up any sqft prefix and newlines
+      let addressMatch = text.match(/\d+\s+[^,]+,\s*[^,]+,\s*[A-Z]{2}/);
       if (!addressMatch) return;
-      const address = parseAddress(addressMatch[0]);
+
+      // Clean up the address - remove sqft prefix if present
+      let addressStr = addressMatch[0].replace(/^\d+\s*Sq\.\s*Ft\.\s*/i, "").trim();
+      addressStr = addressStr.replace(/\n+/g, " ").replace(/\s+/g, " "); // Normalize whitespace and newlines
+
+      const address = parseAddress(addressStr);
 
       // Extract specs
       const specs = parseSpecs(text);

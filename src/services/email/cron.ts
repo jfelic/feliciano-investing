@@ -6,15 +6,19 @@ import type { ImapConfig } from "./fetcher";
  * Set up cron job to fetch and process property emails
  * @param schedule - Cron schedule (default: every 4 hours)
  * @param config - IMAP configuration
+ * @param runImmediately - Whether to run immediately on startup (default: false)
  */
 export function setupEmailCron(
   config: ImapConfig,
-  schedule: string = "0 */4 * * *"
+  schedule: string = "0 */4 * * *",
+  runImmediately: boolean = false
 ) {
   console.log(`Setting up email cron job with schedule: ${schedule}`);
 
-  // Run immediately on startup
-  runEmailJob(config);
+  // Run immediately on startup if requested
+  if (runImmediately) {
+    runEmailJob(config);
+  }
 
   // Schedule recurring job
   const task = cron.schedule(schedule, async () => {

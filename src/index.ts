@@ -6,11 +6,16 @@ import { setupEmailCron, getImapConfigFromEnv } from "./services/email";
 const prisma = new PrismaClient();
 
 // Start email cron job (runs every 4 hours by default)
+// Set RUN_EMAIL_ON_STARTUP=true to run immediately on startup
 if (process.env.IMAP_USER && process.env.IMAP_PASSWORD) {
   try {
     const imapConfig = getImapConfigFromEnv();
-    setupEmailCron(imapConfig);
-    console.log("📧 Email cron job started");
+    const runImmediately = process.env.RUN_EMAIL_ON_STARTUP === "true";
+    setupEmailCron(imapConfig, "0 */4 * * *", runImmediately);
+    console.log("📧 Email cron job scheduled (every 4 hours)");
+    if (!runImmediately) {
+      console.log("   To run immediately on startup, set RUN_EMAIL_ON_STARTUP=true");
+    }
   } catch (error) {
     console.error("Failed to start email cron job:", error);
   }
@@ -124,6 +129,37 @@ const server = serve({
         } catch (error) {
           return Response.json(
             { error: "Failed to fetch statistics" },
+            { status: 500 }
+          );
+        }
+      },
+    },
+
+    // Manually trigger email processing
+    "/api/process-emails": {
+      async POST(req) {
+        try {
+          if (!process.env.IMAP_USER || !process.env.IMAP_PASSWORD) {
+            return Response.json(
+              { error: "IMAP not configured" },
+              { status: 400 }
+            );
+          }
+
+          const imapConfig = getImapConfigFromEnv();
+          const { processPropertyEmails } = await import("./services/email");
+
+          const result = await processPropertyEmails(imapConfig);
+
+          return Response.json({
+            success: true,
+            created: result.created,
+            updated: result.updated,
+            errors: result.errors,
+          });
+        } catch (error) {
+          return Response.json(
+            { error: `Failed to process emails: ${error}` },
             { status: 500 }
           );
         }

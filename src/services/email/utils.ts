@@ -37,7 +37,7 @@ export function parsePrice(priceStr: string): number {
 
 /**
  * Parse property specs string
- * Example: "3 bd | 2 ba | 1,075 sqft"
+ * Example: "3 bd | 2 ba | 1,075 sqft" or "3 Beds | 2 Baths | 1,075 Sq. Ft."
  */
 export function parseSpecs(specsStr: string): {
   beds?: number;
@@ -46,20 +46,20 @@ export function parseSpecs(specsStr: string): {
 } {
   const result: { beds?: number; baths?: number; sqft?: number } = {};
 
-  // Extract beds
-  const bedsMatch = specsStr.match(/(\d+)\s*bd/);
+  // Extract beds (supports: bd, beds, bedroom)
+  const bedsMatch = specsStr.match(/(\d+)\s*(?:bd|beds?|bedrooms?)/i);
   if (bedsMatch) {
     result.beds = parseInt(bedsMatch[1] ?? "0", 10);
   }
 
-  // Extract baths (can be decimal like 2.5)
-  const bathsMatch = specsStr.match(/([\d.]+)\s*ba/);
+  // Extract baths (can be decimal like 2.5, supports: ba, baths, bathroom)
+  const bathsMatch = specsStr.match(/([\d.]+)\s*(?:ba|baths?|bathrooms?)/i);
   if (bathsMatch) {
     result.baths = parseFloat(bathsMatch[1] ?? "0");
   }
 
-  // Extract sqft
-  const sqftMatch = specsStr.match(/([\d,]+)\s*sqft/);
+  // Extract sqft (supports: sqft, sq. ft., sq ft)
+  const sqftMatch = specsStr.match(/([\d,]+)\s*(?:sqft|sq\.?\s*ft\.?)/i);
   if (sqftMatch) {
     result.sqft = parseInt((sqftMatch[1] ?? "0").replace(/,/g, ""), 10);
   }
@@ -121,26 +121,89 @@ export function extractListingId(url: string, source: string): string {
 }
 
 /**
+ * Normalize street address for comparison
+ * Converts common abbreviations and standardizes format
+ */
+export function normalizeAddress(
+  street: string,
+  city: string,
+  state: string
+): string {
+  let normalized = street.toLowerCase().trim();
+
+  // Common street type abbreviations
+  const abbreviations: Record<string, string> = {
+    street: "st",
+    avenue: "ave",
+    road: "rd",
+    drive: "dr",
+    court: "ct",
+    circle: "cir",
+    boulevard: "blvd",
+    lane: "ln",
+    way: "way",
+    place: "pl",
+    terrace: "ter",
+    parkway: "pkwy",
+    highway: "hwy",
+    trail: "trl",
+    square: "sq",
+  };
+
+  // Replace full names with abbreviations
+  for (const [full, abbr] of Object.entries(abbreviations)) {
+    normalized = normalized.replace(
+      new RegExp(`\\b${full}\\b`, "g"),
+      abbr
+    );
+  }
+
+  // Remove common prefixes/suffixes
+  normalized = normalized
+    .replace(/\b(north|south|east|west|n|s|e|w)\b\.?/g, "")
+    .replace(/\b(unit|apt|#)\b\.?\s*[\w\d-]*/gi, "") // Remove unit numbers
+    .replace(/[.,]/g, "") // Remove periods and commas
+    .replace(/\s+/g, " ") // Normalize spaces
+    .trim();
+
+  // Combine with city and state for full normalized address
+  return `${normalized}|${city.toLowerCase().trim()}|${state.toLowerCase().trim()}`;
+}
+
+/**
  * Determine source from email address or URL
  */
 export function determineSource(email: string, url?: string): string {
   const lowerEmail = email.toLowerCase();
   const lowerUrl = url?.toLowerCase() || "";
 
-  if (lowerEmail.includes("zillow") || lowerUrl.includes("zillow")) {
+  // Check email domains and URLs
+  if (
+    lowerEmail.includes("zillow") ||
+    lowerEmail.includes("mail.zillow") ||
+    lowerUrl.includes("zillow")
+  ) {
     return "zillow";
   }
-  if (lowerEmail.includes("redfin") || lowerUrl.includes("redfin")) {
+  if (
+    lowerEmail.includes("redfin") ||
+    lowerUrl.includes("redfin")
+  ) {
     return "redfin";
   }
   if (
     lowerEmail.includes("realtor") ||
+    lowerEmail.includes("notifications.realtor") ||
     lowerUrl.includes("realtor") ||
     lowerUrl.includes("move.com")
   ) {
     return "realtor";
   }
-  if (lowerEmail.includes("land.com") || lowerUrl.includes("land.com")) {
+  if (
+    lowerEmail.includes("land.com") ||
+    lowerEmail.includes("land") ||
+    lowerUrl.includes("land.com")
+  ) {
     return "land";
   }
 

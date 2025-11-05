@@ -29,15 +29,23 @@ export async function fetchPropertyEmails(
         }
 
         // Search for unread emails from real estate sources
+        // OR must have exactly 2 arguments, so we nest them
+        // Using just brand names to match subdomains (e.g., "zillow" matches "mail.zillow.com")
         const searchCriteria = [
           "UNSEEN",
           [
             "OR",
-            ["OR", "FROM", "zillow.com"],
-            ["OR", "FROM", "redfin.com"],
-            ["OR", "FROM", "realtor.com"],
-            ["FROM", "land.com"],
-          ],
+            ["FROM", "zillow"],
+            [
+              "OR",
+              ["FROM", "redfin"],
+              [
+                "OR",
+                ["FROM", "realtor"],
+                ["FROM", "land"]
+              ]
+            ]
+          ]
         ];
 
         imap.search(searchCriteria, (searchErr, results) => {
