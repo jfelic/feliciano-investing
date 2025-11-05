@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Property {
+  id            String   @id @default(cuid())
+
+  // Location
+  street        String
+  city          String
+  state         String
+  zip           String?
+  county        String?
+
+  // Listing Info
+  source        String       // "zillow", "redfin", "realtor", "land"
+  sourceId      String       // Extracted from listing URL
+  url           String       // Direct link to listing
+  status        PropertyStatus @default(ACTIVE)
+
+  // Pricing
+  price         Decimal  @db.Decimal(12, 2)
+
+  // Property Details
+  propertyType  PropertyType @default(HOME)
+  beds          Int?
+  baths         Decimal?  @db.Decimal(3, 1) // Allows 2.5 baths
+  sqft          Int?
+  lotSize       Decimal?  @db.Decimal(10, 2)
+  yearBuilt     Int?
+  builder       String?   // For new construction
+
+  // Agent/Realtor
+  agent         String?
+
+  // Media & Description
+  images        String[]
+  description   String?   @db.Text
+
+  // Metadata
+  firstSeenAt   DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  favorites     Favorite[]
+  priceHistory  PriceHistory[]
+
+  @@unique([source, sourceId])
+  @@index([propertyType])
+  @@index([city, state])
+  @@index([price])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PriceHistory {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  oldPrice   Decimal  @db.Decimal(12, 2)
+  newPrice   Decimal  @db.Decimal(12, 2)
+  changeDate DateTime @default(now())
+
+  createdAt  DateTime @default(now())
+
+  @@index([propertyId])
+  @@index([changeDate])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String   @unique
+  password  String?
+
+  favorites Favorite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  propertyId String
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, propertyId])
+  @@index([userId])
+  @@index([propertyId])
+}
+
+enum PropertyType {
+  HOME
+  LAND
+  CONDO
+  TOWNHOUSE
+  MULTI_FAMILY
+}
+
+enum PropertyStatus {
+  ACTIVE
+  PENDING
+  SOLD
+  OFF_MARKET
+}
