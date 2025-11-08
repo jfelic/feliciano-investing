@@ -4,7 +4,6 @@ export interface ParsedProperty {
   city: string;
   state: string;
   zip?: string;
-  county?: string;
 
   // Listing Info
   source: string;
@@ -25,15 +24,9 @@ export interface ParsedProperty {
   baths?: number;
   sqft?: number;
   lotSize?: number;
-  yearBuilt?: number;
-  builder?: string;
-
-  // Agent/Realtor
-  agent?: string;
 
   // Media
   images: string[];
-  description?: string;
 }
 
 export interface EmailParserResult {

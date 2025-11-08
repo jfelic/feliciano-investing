@@ -13,7 +13,6 @@ interface Property {
   source: string;
   url: string;
   images: string[];
-  builder?: string | null;
   propertyType: string;
 }
 
@@ -80,11 +79,6 @@ export function PropertyCard({ property }: PropertyCardProps) {
           {property.baths && <span>{property.baths} ba</span>}
           {property.sqft && <span>{property.sqft.toLocaleString()} sqft</span>}
         </div>
-        {property.builder && (
-          <p className="text-sm text-muted-foreground mb-3">
-            Builder: {property.builder}
-          </p>
-        )}
         <Button asChild className="w-full">
           <a href={property.url} target="_blank" rel="noopener noreferrer">
             View Listing

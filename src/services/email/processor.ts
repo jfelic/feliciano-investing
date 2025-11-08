@@ -89,7 +89,6 @@ async function upsertProperty(
     city: property.city,
     state: property.state,
     zip: property.zip,
-    county: property.county,
     source: property.source,
     sourceId: property.sourceId,
     url: property.url,
@@ -102,11 +101,7 @@ async function upsertProperty(
     lotSize: property.lotSize
       ? new Prisma.Decimal(property.lotSize)
       : undefined,
-    yearBuilt: property.yearBuilt,
-    builder: property.builder,
-    agent: property.agent,
     images: property.images,
-    description: property.description,
   };
 
   if (existing) {
@@ -127,8 +122,6 @@ async function upsertProperty(
         sqft: property.sqft ?? existing.sqft,
         images:
           property.images.length > 0 ? property.images : existing.images,
-        agent: property.agent ?? existing.agent,
-        builder: property.builder ?? existing.builder,
       },
     });
 

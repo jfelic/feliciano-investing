@@ -15,7 +15,6 @@ interface Property {
   source: string;
   url: string;
   images: string[];
-  builder?: string | null;
   propertyType: string;
 }
 
@@ -31,9 +30,12 @@ export function App() {
     try {
       const response = await fetch("/api/properties");
       const data = await response.json();
-      setProperties(data);
+      console.log("API response:", data);
+      console.log("Is array?", Array.isArray(data));
+      setProperties(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch properties:", error);
+      setProperties([]);
     } finally {
       setLoading(false);
     }

@@ -1,28 +1,63 @@
 /**
  * Parse an address string into components
- * Example: "1002 Pitty Pat Dr, Florence, SC" -> { street, city, state }
+ * Handles formats:
+ * - "1002 Pitty Pat Dr, Florence, SC" -> { street, city, state }
+ * - "8007 Broadmead Ct, Spartanburg, SC 29307" -> { street, city, state, zip }
+ * - "181 E Lanford St, Spartanburg, SC" -> { street, city, state }
  */
 export function parseAddress(address: string): {
   street: string;
   city: string;
   state: string;
+  zip?: string;
 } {
   const trimmed = address.trim();
   const parts = trimmed.split(",").map((p) => p.trim());
 
-  if (parts.length < 3) {
-    // Handle format: "Street, City State"
-    if (parts.length === 2) {
-      const [street, cityState] = parts as [string, string];
-      const cityStateParts = cityState.trim().split(/\s+/);
-      const state = cityStateParts.pop() || "";
-      const city = cityStateParts.join(" ");
-      return { street, city, state };
-    }
+  if (parts.length < 2) {
     throw new Error(`Invalid address format: ${address}`);
   }
 
-  const [street, city, state] = parts as [string, string, string];
+  if (parts.length === 2) {
+    // Format: "Street, City State" or "Street, City State Zip"
+    const [street, cityStateZip] = parts as [string, string];
+    const cityStateZipParts = cityStateZip.trim().split(/\s+/);
+
+    // Check if last part is a zip code (5 digits)
+    const lastPart = cityStateZipParts[cityStateZipParts.length - 1] || "";
+    const zipMatch = lastPart.match(/^\d{5}$/);
+
+    if (zipMatch) {
+      // Has zip code
+      const zip = cityStateZipParts.pop();
+      const state = cityStateZipParts.pop() || "";
+      const city = cityStateZipParts.join(" ");
+      console.log(`✅ Parsed address with zip: ${street}, ${city}, ${state} ${zip}`);
+      return { street, city, state, zip };
+    } else {
+      // No zip code
+      const state = cityStateZipParts.pop() || "";
+      const city = cityStateZipParts.join(" ");
+      return { street, city, state };
+    }
+  }
+
+  // Format: "Street, City, State" or "Street, City, State Zip"
+  const [street, city, stateZip] = parts as [string, string, string];
+  const stateZipParts = stateZip.trim().split(/\s+/);
+
+  // Check if there's a zip code
+  if (stateZipParts.length > 1) {
+    const zipMatch = stateZipParts[stateZipParts.length - 1]?.match(/^\d{5}$/);
+    if (zipMatch) {
+      const zip = stateZipParts.pop();
+      const state = stateZipParts.join(" ");
+      console.log(`✅ Parsed address with zip: ${street}, ${city}, ${state} ${zip}`);
+      return { street, city, state, zip };
+    }
+  }
+
+  const state = stateZipParts.join(" ");
   return { street, city, state };
 }
 

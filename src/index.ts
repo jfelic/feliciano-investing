@@ -24,6 +24,8 @@ if (process.env.IMAP_USER && process.env.IMAP_PASSWORD) {
 }
 
 const server = serve({
+  idleTimeout: 255,
+
   routes: {
     // Serve index.html for all unmatched routes.
     "/*": index,
@@ -55,7 +57,7 @@ const server = serve({
           const properties = await prisma.property.findMany({
             where,
             orderBy: { createdAt: "desc" },
-            take: 100,
+            take: 500, // Increased limit
           });
 
           return Response.json(properties);
