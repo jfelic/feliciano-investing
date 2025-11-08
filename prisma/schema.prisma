@@ -19,7 +19,6 @@ model Property {
   city          String
   state         String
   zip           String?
-  county        String?
 
   // Listing Info
   source        String       // "zillow", "redfin", "realtor", "land"
@@ -36,15 +35,9 @@ model Property {
   baths         Decimal?  @db.Decimal(3, 1) // Allows 2.5 baths
   sqft          Int?
   lotSize       Decimal?  @db.Decimal(10, 2)
-  yearBuilt     Int?
-  builder       String?   // For new construction
-
-  // Agent/Realtor
-  agent         String?
 
   // Media & Description
   images        String[]
-  description   String?   @db.Text
 
   // Metadata
   firstSeenAt   DateTime  @default(now())
